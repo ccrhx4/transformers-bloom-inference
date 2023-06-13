@@ -3,6 +3,7 @@ import gc
 from functools import partial
 
 import torch
+from deepspeed.accelerator import get_accelerator
 
 from .constants import DS_INFERENCE, DS_ZERO
 from .model_handler.deployment import ModelDeployment
@@ -49,6 +50,8 @@ def benchmark_end_to_end(args: argparse.Namespace) -> None:
 
     request = create_generate_request(get_dummy_batch(args.batch_size), args.generate_kwargs)
 
+    print("local rank: " + str(torch.distributed.get_rank()), flush=True)
+    #if torch.distributed.get_rank() == 0:
     print_rank_0(f"generate_kwargs = {args.generate_kwargs}")
     print_rank_0(f"batch_size = {args.batch_size}")
 
@@ -62,12 +65,12 @@ def benchmark_end_to_end(args: argparse.Namespace) -> None:
     if args.benchmark_cycles > 0:
         print_rank_0("*** Running benchmark")
 
-        torch.cuda.empty_cache()
+        get_accelerator().empty_cache()
         gc.collect()
 
         # warm up
         model.generate(request=request)
-        torch.cuda.synchronize()
+        get_accelerator().synchronize()
 
         # benchmark
         total_new_tokens_generated, benchmark_time = run_and_log_time(

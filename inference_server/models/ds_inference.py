@@ -8,6 +8,8 @@ from functools import partial
 import torch
 
 import deepspeed
+from deepspeed.accelerator import get_accelerator
+
 from huggingface_hub import try_to_load_from_cache
 from transformers import AutoConfig
 
@@ -25,7 +27,7 @@ class DSInferenceModel(Model):
         # following code
         with deepspeed.OnDevice(dtype=torch.float16, device="meta"):
             self.model = get_hf_model_class(args.model_class).from_config(
-                AutoConfig.from_pretrained(args.model_name), torch_dtype=torch.bfloat16
+                AutoConfig.from_pretrained(args.model_name), torch_dtype=torch.float16
             )
         self.model = self.model.eval()
 
@@ -63,7 +65,7 @@ class DSInferenceModel(Model):
             raise NotImplementedError("bfloat16 is not yet supported")
 
         self.model = self.model.module
-        self.input_device = torch.cuda.current_device()
+        self.input_device = get_accelerator().current_device_name()
 
         self.post_init(args.model_name)
 

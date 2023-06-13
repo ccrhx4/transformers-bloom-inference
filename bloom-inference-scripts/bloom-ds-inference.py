@@ -28,6 +28,8 @@ import torch
 import torch.distributed as dist
 
 import deepspeed
+from deepspeed.accelerator import get_accelerator
+
 from huggingface_hub import snapshot_download
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 from transformers.models.bloom.modeling_bloom import BloomBlock as BloomBlock
@@ -53,7 +55,14 @@ args = parser.parse_args()
 local_rank = int(os.getenv("LOCAL_RANK", "0"))
 world_size = int(os.getenv("WORLD_SIZE", "1"))
 
-deepspeed.init_distributed("nccl")
+# deepspeed.init_distributed("nccl")
+deepspeed.init_distributed(get_accelerator().communication_backend_name())
+ 
+# manual all_reduce to work around ccl hang issue
+x = torch.ones([4, 1, 14336], device=torch.device('xpu', local_rank), dtype=torch.bfloat16)
+dist.all_reduce(x)
+ 
+
 rank = dist.get_rank()
 
 
@@ -118,23 +127,23 @@ config = AutoConfig.from_pretrained(model_name)
 # use one of these args to `init_inference`
 # 1. injection_policy is the slower version, but it's plain pytorch so it'll always work
 # 2. replace_with_kernel_inject is the faster one (fast fused kernels)
-kernel_inject = True
+kernel_inject = False
 # kernel_inject = False
 
 if kernel_inject:
     # XXX: for now ds-inference only works with fp16
     dtype = torch.float16
 else:
-    dtype = torch.bfloat16
+    dtype = torch.float16
 
 if args.benchmark:
-    torch.cuda.empty_cache()
+    get_accelerator().empty_cache()
     gc.collect()
     deepspeed.runtime.utils.see_memory_usage("pre-from-pretrained", force=True)
 
 # Construct model with fake meta tensors, later will be replaced during ds-inference ckpt load
 with deepspeed.OnDevice(dtype=dtype, device="meta"):
-    model = AutoModelForCausalLM.from_config(config, torch_dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_config(config, torch_dtype=dtype)
 
 if args.benchmark:
     deepspeed.runtime.utils.see_memory_usage("post-from-pretrained", force=True)
@@ -142,7 +151,7 @@ if args.benchmark:
 model = model.eval()
 
 if args.benchmark:
-    torch.cuda.empty_cache()
+    get_accelerator().empty_cache()
     gc.collect()
     deepspeed.runtime.utils.see_memory_usage("post-init-ds-zero-init", force=True)
 
@@ -159,7 +168,7 @@ def write_checkpoints_json():
 
 
 if args.benchmark:
-    torch.cuda.empty_cache()
+    get_accelerator().empty_cache()
     gc.collect()
     deepspeed.runtime.utils.see_memory_usage("pre-ds-inference-init", force=True)
 
@@ -188,7 +197,7 @@ model = deepspeed.init_inference(
 )
 
 if args.benchmark:
-    torch.cuda.empty_cache()
+    get_accelerator().empty_cache()
     gc.collect()
     deepspeed.runtime.utils.see_memory_usage("post-ds-inference-init", force=True)
 
@@ -233,7 +242,7 @@ def generate():
     input_tokens = tokenizer.batch_encode_plus(inputs, return_tensors="pt", padding=True)
     for t in input_tokens:
         if torch.is_tensor(input_tokens[t]):
-            input_tokens[t] = input_tokens[t].to(torch.cuda.current_device())
+            input_tokens[t] = input_tokens[t].to(get_accelerator().current_device_name())
 
     outputs = model.generate(**input_tokens, **generate_kwargs)
 
