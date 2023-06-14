@@ -14,7 +14,7 @@ def get_args() -> argparse.Namespace:
     parser = get_argument_parser()
 
     group = parser.add_argument_group(title="launch config")
-    # group.add_argument("--local_rank", required=False, type=int, help="used by dist launchers")
+    group.add_argument("--local_rank", required=False, type=int, help="used by dist launchers")
     group.add_argument("--cpu_offload", action="store_true", help="whether to activate CPU offload for DS ZeRO")
     group.add_argument("--ports", nargs="+", help="GRPC ports")
 

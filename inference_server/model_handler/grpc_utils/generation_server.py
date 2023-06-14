@@ -26,8 +26,8 @@ class GenerationServer(generation_pb2_grpc.GenerationServiceServicer):
         request = create_generate_request(text=text, generate_kwargs=generate_kwargs)
 
         local_rank = int(os.getenv("LOCAL_RANK", "0"))
-        torch.cuda.set_device(local_rank)
-        self.model.input_device = local_rank
+        torch.xpu.set_device(local_rank)
+        self.model.input_device = torch.device('xpu', local_rank)
 
         response = self.model.generate(request)
 
@@ -52,7 +52,7 @@ class GenerationServer(generation_pb2_grpc.GenerationServiceServicer):
         request = ForwardRequest(conditioning_text=conditioning_text, response=response)
 
         local_rank = int(os.getenv("LOCAL_RANK", "0"))
-        torch.cuda.set_device(local_rank)
+        torch.xpu.set_device(local_rank)
         self.model.input_device = local_rank
 
         response = self.model.forward(request)

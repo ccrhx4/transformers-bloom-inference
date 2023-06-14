@@ -27,6 +27,7 @@ class Model:
     def post_init(self, model_name: str) -> None:
         self.is_encoder_decoder = AutoConfig.from_pretrained(model_name).is_encoder_decoder
         self.generation_config = GenerationConfig.from_model_config(AutoConfig.from_pretrained(model_name))
+
         self.tokenizer = load_tokenizer(model_name)
         self.pad = self.tokenizer.pad_token_id
         self.prefix_token_id = self.tokenizer("A")["input_ids"][0]

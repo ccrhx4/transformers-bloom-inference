@@ -32,7 +32,6 @@ def get_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
 
     group = parser.add_argument_group(title="model")
-    group.add_argument("--local_rank", required=False, type=int, help="used by dist launchers")
 
     group.add_argument(
         "--deployment_framework",

@@ -14,6 +14,19 @@ ui:
 	python -m ui --ui_host 127.0.0.1 --ui_port 5001 --generation_backend_host 127.0.0.1 --generation_backend_port 5000 &
 
 # ------------------------- DS inference -------------------------
+bloom-560m:
+	make ui
+
+	TOKENIZERS_PARALLELISM=false \
+	MODEL_NAME=bigscience/bloom-560m \
+	MODEL_CLASS=AutoModelForCausalLM \
+	DEPLOYMENT_FRAMEWORK=ds_inference \
+	DTYPE=fp16 \
+	MAX_INPUT_LENGTH=2048 \
+	MAX_BATCH_SIZE=4 \
+	CUDA_VISIBLE_DEVICES=0,1 \
+	gunicorn -t 0 -w 1 -b 127.0.0.1:5000 inference_server.server:app --access-logfile - --access-logformat '%(h)s %(t)s "%(r)s" %(s)s %(b)s'
+
 bloom-176b:
 	make ui
 
@@ -68,19 +81,19 @@ bloom-176b-int8:
 	gunicorn -t 0 -w 1 -b 127.0.0.1:5000 inference_server.server:app --access-logfile - --access-logformat '%(h)s %(t)s "%(r)s" %(s)s %(b)s'
 
 # ------------------------- HF accelerate -------------------------
-bloom-560m:
-	make ui
+# bloom-560m:
+#	make ui
 
-	TOKENIZERS_PARALLELISM=false \
-	MODEL_NAME=bigscience/bloom-560m \
-	MODEL_CLASS=AutoModelForCausalLM \
-	DEPLOYMENT_FRAMEWORK=hf_accelerate \
-	DTYPE=bf16 \
-	MAX_INPUT_LENGTH=2048 \
-	MAX_BATCH_SIZE=32 \
-	CUDA_VISIBLE_DEVICES=0 \
-	gunicorn -t 0 -w 1 -b 127.0.0.1:5000 inference_server.server:app --access-logfile - --access-logformat '%(h)s %(t)s "%(r)s" %(s)s %(b)s'
-
+#	TOKENIZERS_PARALLELISM=false \
+#	MODEL_NAME=bigscience/bloom-560m \
+#	MODEL_CLASS=AutoModelForCausalLM \
+#	DEPLOYMENT_FRAMEWORK=hf_accelerate \
+#	DTYPE=bf16 \
+#	MAX_INPUT_LENGTH=2048 \
+#	MAX_BATCH_SIZE=32 \
+#	CUDA_VISIBLE_DEVICES=0 \
+#	gunicorn -t 0 -w 1 -b 127.0.0.1:5000 inference_server.server:app --access-logfile - --access-logformat '%(h)s %(t)s "%(r)s" %(s)s %(b)s'
+#
 flan-t5-xxl:
 	make ui
 
