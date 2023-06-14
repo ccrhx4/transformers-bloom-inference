@@ -268,7 +268,7 @@ for i, o, _ in generated:
     print_rank0(f"{'-'*60}\nin={i}\nout={o}\n")
 
 if args.benchmark:
-    torch.cuda.empty_cache()
+    get_accelerator().empty_cache()
     gc.collect()
     deepspeed.runtime.utils.see_memory_usage("end-of-run", force=True)
 
@@ -281,7 +281,7 @@ if args.benchmark:
     # warm up
     for i in range(1):
         _ = generate()
-    torch.cuda.synchronize()
+    get_accelerator().synchronize()
 
     # benchmark
     t0 = time.time()
@@ -290,7 +290,7 @@ if args.benchmark:
     for i in range(cycles):
         generated = generate()
         total_new_tokens_generated += sum(new_tokens for _, _, new_tokens in generated)
-    torch.cuda.synchronize()
+    get_accelerator().synchronize()
     throughput = (time.time() - t0) / (total_new_tokens_generated)
     print_rank0(
         f"""

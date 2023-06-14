@@ -32,6 +32,8 @@ def get_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
 
     group = parser.add_argument_group(title="model")
+    group.add_argument("--local_rank", required=False, type=int, help="used by dist launchers")
+
     group.add_argument(
         "--deployment_framework",
         type=str,
@@ -73,16 +75,9 @@ def parse_args(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
     return args
 
-
 def run_rank_n(func: Callable, rank: int = 0, barrier: bool = False) -> None:
     # wrapper function for the rank to execute on
     def func_rank_n(*args, **kwargs):
-        if dist.is_initialized():
-            if dist.get_rank() != rank:
-                return func_rank_other
-        else:
-            return func
-
         output = func(*args, **kwargs)
         if barrier:
             dist.barrier()
@@ -93,11 +88,18 @@ def run_rank_n(func: Callable, rank: int = 0, barrier: bool = False) -> None:
         if barrier:
             dist.barrier()
 
-    return func_rank_n
+    if dist.is_initialized():
+        if dist.get_rank() == rank:
+            return func_rank_n
+        return func_rank_other
+    else:
+        return func
 
-
-@run_rank_n
 def print_rank_0(*args, **kwargs) -> None:
+    if dist.is_initialized():
+        if dist.get_rank() != 0:
+            return
+
     print(*args, **kwargs)
 
 
