@@ -50,6 +50,7 @@ parser.add_argument("--dtype", type=str, help="float16 or int8", choices=["int8"
 parser.add_argument("--local_rank", required=False, type=int, help="used by dist launchers")
 parser.add_argument("--batch_size", default=1, type=int, help="batch size")
 parser.add_argument("--benchmark", action="store_true", help="additionally run benchmark")
+parser.add_argument("--ki", action="store_true", help="enable kernel injection")
 args = parser.parse_args()
 
 local_rank = int(os.getenv("LOCAL_RANK", "0"))
@@ -64,7 +65,6 @@ dist.all_reduce(x)
  
 
 rank = dist.get_rank()
-
 
 def print_rank0(*msg):
     if rank != 0:
@@ -112,13 +112,13 @@ model_name = args.name
 infer_dtype = args.dtype
 
 tp_presharded_mode = True if model_name in tp_presharded_models else False
-
-# print(get_checkpoint_files(model_name))
+print(get_checkpoint_files(model_name))
 
 print_rank0(f"*** Loading the model {model_name}")
 
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+tokenizer = AutoTokenizer.from_pretrained(model_name, low_cpu_mem_usage=True)
 config = AutoConfig.from_pretrained(model_name)
+
 
 # XXX: can't automatically derive dtype via config's `from_pretrained`
 # dtype = torch.bfloat16 if model_name in ["bigscience/bloom", "bigscience/bigscience-small-testing"] else torch.float16
@@ -128,7 +128,9 @@ config = AutoConfig.from_pretrained(model_name)
 # 1. injection_policy is the slower version, but it's plain pytorch so it'll always work
 # 2. replace_with_kernel_inject is the faster one (fast fused kernels)
 kernel_inject = False
-# kernel_inject = False
+
+if args.ki == True:
+    kernel_inject = True
 
 if kernel_inject:
     # XXX: for now ds-inference only works with fp16
@@ -186,6 +188,7 @@ else:
     write_checkpoints_json()
     dist.barrier()
 
+
 # checkpoints_json=None
 model = deepspeed.init_inference(
     model,
@@ -203,6 +206,8 @@ if args.benchmark:
 
 
 model = model.module
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
 if args.benchmark:
     t_ready = time.time()
@@ -301,3 +306,4 @@ Tokenize and generate {total_new_tokens_generated} (bs={args.batch_size}) tokens
 Start to finish: {t_ready - t_start + t_generate_span:.3f} secs
 """
     )
+
